@@ -20,13 +20,11 @@ class SetPriority implements ObserverInterface {
 	}
     public function execute(\Magento\Framework\Event\Observer $observer) {
 		$event = $observer->getEvent();
-		$eventName = $event->getName();
-		//$design = $objectManager->create('\Magento\Framework\View\DesignInterface');
-		//$model = $this->_objectManager->create(\Magento\SalesRule\Model\Rule::class);
 		$serializer = $this->_objectManager->get(\Magento\Framework\Serialize\Serializer\Json::class);
 
 		$request = $event->getRequest();
-		$sortOrder = $request->getPostValue('sort_order');
+		$sortOrder = (int) $request->getPostValue('sort_order');
+
 		$conditionsSerialized = $request->getPostValue('conditions_serialized');
 		$conditionsUnserialize = $serializer->unserialize($conditionsSerialized);
 		if(isset($conditionsUnserialize['conditions'])) {
