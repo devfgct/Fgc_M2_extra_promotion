@@ -178,9 +178,13 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
         if ('payment_method' == $this->getAttribute() && !$address->hasPaymentMethod()) {
             $address->setPaymentMethod($model->getQuote()->getPayment()->getMethod());
         }
-
-        $grandTotal = $address->getBaseSubtotal() + $address->getDiscountAmount() + $address->getBaseShippingAmount() + $address->getBaseTaxAmount();
+        $rule = $this->getRule();
+        $discountAmountRule = $rule->getDiscountAmount();
+        $discountAmountAddress = $address->getDiscountAmount();
+        $discountAmount = -$discountAmountRule;
+        $grandTotal = $address->getBaseSubtotal() + $discountAmount + $address->getBaseShippingAmount() + $address->getBaseTaxAmount();
         $address->setBaseGrandTotal($grandTotal);
+        $attribute = $this->getAttribute();
 
         return parent::validate($address);
     }
