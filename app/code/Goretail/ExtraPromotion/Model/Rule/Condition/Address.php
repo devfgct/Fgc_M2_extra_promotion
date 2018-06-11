@@ -40,6 +40,7 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
         \Magento\Directory\Model\Config\Source\Allregion $directoryAllregion,
         \Magento\Shipping\Model\Config\Source\Allmethods $shippingAllmethods,
         \Magento\Payment\Model\Config\Source\Allmethods $paymentAllmethods,
+        \Magento\Framework\Registry $coreRegistry,
         array $data = []
     ) {
         parent::__construct($context, $data);
@@ -47,6 +48,7 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
         $this->_directoryAllregion = $directoryAllregion;
         $this->_shippingAllmethods = $shippingAllmethods;
         $this->_paymentAllmethods = $paymentAllmethods;
+        $this->_coreRegistry = $coreRegistry;
     }
 
     /**
@@ -166,6 +168,8 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
      */
     public function validate(\Magento\Framework\Model\AbstractModel $model)
     {
+        //$this->_objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+        //$coreRegistry = $this->_objectManager->get(\Magento\Framework\Registry::class);
         $address = $model;
         if (!$address instanceof \Magento\Quote\Model\Quote\Address) {
             if ($model->getQuote()->isVirtual()) {
@@ -178,10 +182,34 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
         if ('payment_method' == $this->getAttribute() && !$address->hasPaymentMethod()) {
             $address->setPaymentMethod($model->getQuote()->getPayment()->getMethod());
         }
+
+        $subtotal = $address->getBaseSubtotal();
+        
+        $discountAmountRegistry = $this->_coreRegistry->registry('extra_promo_discount_amount_rule') ?: 0;
+
         $rule = $this->getRule();
-        $discountAmountRule = $rule->getDiscountAmount();
-        $discountAmountAddress = $address->getDiscountAmount();
-        $discountAmount = -$discountAmountRule;
+        //$discountType = $rule->getSimpleAction();
+        $discountAmount = $rule->getDiscountAmount();
+        switch ($rule->getSimpleAction()) {
+            case 'by_percent': // Percent of product price discount
+                $discountAmount = ($discountAmount / 100) * $subtotal;
+                break;
+            case 'buy_x_get_y': // Buy X get Y free (discount amount is Y)
+                break;
+            case 'by_fixed': // Fixed amount discount
+                break;
+            case 'cart_fixed': // Fixed amount discount for whole cart
+                break;
+            default:
+                # code...
+                break;
+        }
+        //$discountAmountAddress = $address->getDiscountAmount();
+        $discountAmount = $discountAmount+$discountAmountRegistry;
+        $this->_coreRegistry->register('extra_promo_discount_amount_rule', $discountAmount, true);
+
+        $discountAmount = -$discountAmount;
+
         $grandTotal = $address->getBaseSubtotal() + $discountAmount + $address->getBaseShippingAmount() + $address->getBaseTaxAmount();
         $address->setBaseGrandTotal($grandTotal);
         $attribute = $this->getAttribute();
