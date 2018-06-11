@@ -26,10 +26,12 @@ class SetPriority implements ObserverInterface {
 		$sortOrder = (int) $request->getPostValue('sort_order');
 
 		$conditionsSerialized = $request->getPostValue('conditions_serialized');
-		$conditionsUnserialize = $serializer->unserialize($conditionsSerialized);
+		if($conditionsSerialized) {
+			$conditionsUnserialize = $serializer->unserialize($conditionsSerialized);
+		} else $conditionsUnserialize = $request->getPostValue('rule');
 		if(isset($conditionsUnserialize['conditions'])) {
 			foreach ($conditionsUnserialize['conditions'] as $condition) {
-				if($sortOrder < 1 && $condition['attribute'] == 'base_grand_total') {
+				if($sortOrder < 1 && isset($condition['attribute']) && $condition['attribute'] == 'base_grand_total') {
 					$request->setPostValue('sort_order', 100);
 				}
 			}
