@@ -183,6 +183,7 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
             $address->setPaymentMethod($model->getQuote()->getPayment()->getMethod());
         }
 
+        $attribute = $this->getAttribute();
         $subtotal = $address->getBaseSubtotal();
         
         $discountAmountRegistry = $this->_coreRegistry->registry('extra_promo_discount_amount_rule') ?: 0;
@@ -205,14 +206,20 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
                 break;
         }
         //$discountAmountAddress = $address->getDiscountAmount();
-        $discountAmount = $discountAmount+$discountAmountRegistry;
+        if($attribute=='base_grand_total') {
+            $discountAmount = $discountAmountRegistry;
+        } else {
+            $discountAmount = $discountAmount+$discountAmountRegistry;
+        }
+
         $this->_coreRegistry->register('extra_promo_discount_amount_rule', $discountAmount, true);
 
         $discountAmount = -$discountAmount;
 
         $grandTotal = $address->getBaseSubtotal() + $discountAmount + $address->getBaseShippingAmount() + $address->getBaseTaxAmount();
         $address->setBaseGrandTotal($grandTotal);
-        $attribute = $this->getAttribute();
+
+        
 
         return parent::validate($address);
     }
