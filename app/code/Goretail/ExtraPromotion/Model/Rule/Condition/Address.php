@@ -185,15 +185,19 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
 
         $attribute = $this->getAttribute();
         $subtotal = $address->getBaseSubtotal();
+        $grandtotal = $address->getBaseGrandTotal();
         
         $discountAmountRegistry = $this->_coreRegistry->registry('extra_promo_discount_amount_rule') ?: 0;
 
         $rule = $this->getRule();
         //$discountType = $rule->getSimpleAction();
-        $discountAmount = $rule->getDiscountAmount();
+        $discountAmountRule = $rule->getDiscountAmount();
         switch ($rule->getSimpleAction()) {
             case 'by_percent': // Percent of product price discount
-                $discountAmount = ($discountAmount / 100) * $subtotal;
+                if($attribute=='base_grand_total')
+                    $discountAmountRule = ($discountAmountRule / 100) * $grandtotal;
+                else
+                    $discountAmountRule = ($discountAmountRule / 100) * $subtotal;
                 break;
             case 'buy_x_get_y': // Buy X get Y free (discount amount is Y)
                 break;
@@ -206,21 +210,27 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
                 break;
         }
         //$discountAmountAddress = $address->getDiscountAmount();
-        if($attribute=='base_grand_total') {
-            $discountAmount = $discountAmountRegistry;
+
+        //$grandTotal = $address->getBaseSubtotal() + (-$discountAmountTotal) + $address->getBaseShippingAmount() + $address->getBaseTaxAmount();
+        //$address->setBaseGrandTotal($grandTotal);
+
+        $result = parent::validate($address);
+        if($result) {
+            if($attribute=='base_grand_total') {
+                $discountAmountTotal = $discountAmountRegistry;
+                // $discountAmountTotal = $discountAmountRule+$discountAmountRegistry;
+            } else {
+                $discountAmountTotal = $discountAmountRule+$discountAmountRegistry;
+            }
         } else {
-            $discountAmount = $discountAmount+$discountAmountRegistry;
+            $discountAmountTotal = $discountAmountRegistry;
         }
+        $this->_coreRegistry->register('extra_promo_discount_amount_rule', $discountAmountTotal, true);
 
-        $this->_coreRegistry->register('extra_promo_discount_amount_rule', $discountAmount, true);
-
-        $discountAmount = -$discountAmount;
-
-        $grandTotal = $address->getBaseSubtotal() + $discountAmount + $address->getBaseShippingAmount() + $address->getBaseTaxAmount();
+        $grandTotal = $address->getBaseSubtotal() + (-$discountAmountTotal) + $address->getBaseShippingAmount() + $address->getBaseTaxAmount();
         $address->setBaseGrandTotal($grandTotal);
+        $result = parent::validate($address);
 
-        
-
-        return parent::validate($address);
+        return $result;
     }
 }
