@@ -5,35 +5,7 @@
  */
 namespace Goretail\ExtraPromotion\Model\Rule\Condition;
 
-class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
-    /**
-     * @var \Magento\Directory\Model\Config\Source\Country
-     */
-    protected $_directoryCountry;
-
-    /**
-     * @var \Magento\Directory\Model\Config\Source\Allregion
-     */
-    protected $_directoryAllregion;
-
-    /**
-     * @var \Magento\Shipping\Model\Config\Source\Allmethods
-     */
-    protected $_shippingAllmethods;
-
-    /**
-     * @var \Magento\Payment\Model\Config\Source\Allmethods
-     */
-    protected $_paymentAllmethods;
-
-    /**
-     * @param \Magento\Rule\Model\Condition\Context $context
-     * @param \Magento\Directory\Model\Config\Source\Country $directoryCountry
-     * @param \Magento\Directory\Model\Config\Source\Allregion $directoryAllregion
-     * @param \Magento\Shipping\Model\Config\Source\Allmethods $shippingAllmethods
-     * @param \Magento\Payment\Model\Config\Source\Allmethods $paymentAllmethods
-     * @param array $data
-     */
+class Address extends \Magento\SalesRule\Model\Rule\Condition\Address {
     public function __construct(
         \Magento\Rule\Model\Condition\Context $context,
         \Magento\Directory\Model\Config\Source\Country $directoryCountry,
@@ -41,23 +13,19 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
         \Magento\Shipping\Model\Config\Source\Allmethods $shippingAllmethods,
         \Magento\Payment\Model\Config\Source\Allmethods $paymentAllmethods,
         \Magento\Framework\Registry $coreRegistry,
+        \Magento\CatalogRule\Helper\Data $ruleHelper,
         array $data = []
     ) {
-        parent::__construct($context, $data);
-        $this->_directoryCountry = $directoryCountry;
-        $this->_directoryAllregion = $directoryAllregion;
-        $this->_shippingAllmethods = $shippingAllmethods;
-        $this->_paymentAllmethods = $paymentAllmethods;
+        parent::__construct($context, $directoryCountry, $directoryAllregion, $shippingAllmethods, $paymentAllmethods);
         $this->_coreRegistry = $coreRegistry;
+        $this->_ruleHelper = $ruleHelper;
     }
-
     /**
      * Load attribute options
      *
      * @return $this
      */
-    public function loadAttributeOptions()
-    {
+    public function loadAttributeOptions() {
         $attributes = [
             'base_subtotal' => __('Subtotal'),
             'base_grand_total' => __('Grand Total'),
@@ -76,24 +44,11 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
     }
 
     /**
-     * Get attribute element
-     *
-     * @return $this
-     */
-    public function getAttributeElement()
-    {
-        $element = parent::getAttributeElement();
-        $element->setShowAsText(true);
-        return $element;
-    }
-
-    /**
      * Get input type
      *
      * @return string
      */
-    public function getInputType()
-    {
+    public function getInputType() {
         switch ($this->getAttribute()) {
             case 'base_subtotal':
             case 'base_grand_total':
@@ -111,63 +66,12 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
     }
 
     /**
-     * Get value element type
-     *
-     * @return string
-     */
-    public function getValueElementType()
-    {
-        switch ($this->getAttribute()) {
-            case 'shipping_method':
-            case 'payment_method':
-            case 'country_id':
-            case 'region_id':
-                return 'select';
-        }
-        return 'text';
-    }
-
-    /**
-     * Get value select options
-     *
-     * @return array|mixed
-     */
-    public function getValueSelectOptions()
-    {
-        if (!$this->hasData('value_select_options')) {
-            switch ($this->getAttribute()) {
-                case 'country_id':
-                    $options = $this->_directoryCountry->toOptionArray();
-                    break;
-
-                case 'region_id':
-                    $options = $this->_directoryAllregion->toOptionArray();
-                    break;
-
-                case 'shipping_method':
-                    $options = $this->_shippingAllmethods->toOptionArray();
-                    break;
-
-                case 'payment_method':
-                    $options = $this->_paymentAllmethods->toOptionArray();
-                    break;
-
-                default:
-                    $options = [];
-            }
-            $this->setData('value_select_options', $options);
-        }
-        return $this->getData('value_select_options');
-    }
-
-    /**
      * Validate Address Rule Condition
      *
      * @param \Magento\Framework\Model\AbstractModel $model
      * @return bool
      */
-    public function validate(\Magento\Framework\Model\AbstractModel $model)
-    {
+    public function validate(\Magento\Framework\Model\AbstractModel $model) {
         //$this->_objectManager = \Magento\Framework\App\ObjectManager::getInstance();
         //$coreRegistry = $this->_objectManager->get(\Magento\Framework\Registry::class);
         $address = $model;
@@ -183,21 +87,25 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
             $address->setPaymentMethod($model->getQuote()->getPayment()->getMethod());
         }
 
+        $result = parent::validate($address);
+
+        $rule = $this->getRule();
+
         $attribute = $this->getAttribute();
         $subtotal = $address->getBaseSubtotal();
         $grandtotal = $address->getBaseGrandTotal();
         
         $discountAmountRegistry = $this->_coreRegistry->registry('extra_promo_discount_amount_rule') ?: 0;
 
-        $rule = $this->getRule();
-        //$discountType = $rule->getSimpleAction();
-        $discountAmountRule = $rule->getDiscountAmount();
+        $ruleAmount = $rule->getDiscountAmount();
+
+        $priceTotal = $attribute == 'base_grand_total' ? $grandtotal : $subtotal;
+
+        // $priceRule = $this->_ruleHelper->calcPriceRule($rule->getSimpleAction(), $ruleAmount, $price);
+
         switch ($rule->getSimpleAction()) {
             case 'by_percent': // Percent of product price discount
-                if($attribute=='base_grand_total')
-                    $discountAmountRule = ($discountAmountRule / 100) * $grandtotal;
-                else
-                    $discountAmountRule = ($discountAmountRule / 100) * $subtotal;
+                $ruleAmount = ($ruleAmount / 100) * $priceTotal;
                 break;
             case 'buy_x_get_y': // Buy X get Y free (discount amount is Y)
                 break;
@@ -206,29 +114,25 @@ class Address extends \Magento\Rule\Model\Condition\AbstractCondition {
             case 'cart_fixed': // Fixed amount discount for whole cart
                 break;
             default:
-                # code...
                 break;
         }
-        //$discountAmountAddress = $address->getDiscountAmount();
 
-        //$grandTotal = $address->getBaseSubtotal() + (-$discountAmountTotal) + $address->getBaseShippingAmount() + $address->getBaseTaxAmount();
-        //$address->setBaseGrandTotal($grandTotal);
-
-        $result = parent::validate($address);
         if($result) {
             if($attribute=='base_grand_total') {
                 $discountAmountTotal = $discountAmountRegistry;
-                // $discountAmountTotal = $discountAmountRule+$discountAmountRegistry;
             } else {
-                $discountAmountTotal = $discountAmountRule+$discountAmountRegistry;
+                $discountAmountTotal = $ruleAmount + $discountAmountRegistry;
             }
         } else {
             $discountAmountTotal = $discountAmountRegistry;
         }
+
         $this->_coreRegistry->register('extra_promo_discount_amount_rule', $discountAmountTotal, true);
 
         $grandTotal = $address->getBaseSubtotal() + (-$discountAmountTotal) + $address->getBaseShippingAmount() + $address->getBaseTaxAmount();
         $address->setBaseGrandTotal($grandTotal);
+
+
         $result = parent::validate($address);
 
         return $result;
